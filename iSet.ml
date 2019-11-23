@@ -21,11 +21,6 @@ type t =
 (*--------------------------------Funkcje pomocnicze--------------------------------*)
 
 (*---------------------Funkcje do wartosci---------------------*)
-let print_wartosc = function
-  | Single(x) -> print_int (x)
-  | Range(x, y) -> print_string ("<"); print_int (x); print_string(" ,"); print_int (y); print_string ("> ")
-  | Null -> print_string("<Null> ")
-
 let left = function
   | Node (l, _, _, _) -> l
   | Empty -> Empty
@@ -76,7 +71,6 @@ let overlap (x: wartosc) (y: wartosc) =
       a <= min_int + 1
     else
       a >= b - 1 && a <= b + 1
-
   | Range(a, b), Single(p) ->
     if p = max_int then
       b >= max_int -1
@@ -84,7 +78,6 @@ let overlap (x: wartosc) (y: wartosc) =
       a <= min_int + 1
     else
       p + 1 >= a && p - 1 <= b
-
   | Single(a), Range(p, q) ->
     if a = max_int then
       q >= max_int - 1
@@ -92,9 +85,7 @@ let overlap (x: wartosc) (y: wartosc) =
       p <= min_int + 1
     else
       a + 1 >= p && a - 1 <= q
-
   | Range(a, b), Range(p, q) ->
-
     if a = min_int && b = max_int then true
     else if a = max_int then
       q >= max_int - 1
@@ -162,7 +153,7 @@ let merge_wartosc (x: wartosc) (y: wartosc) =
   | Range(a, b), Range(p, q) ->
     Range(min a p, max b q)
 
-(* moze jakies rzeczy z max bla bla*)
+(* ilosc liczb w przedziale *)
 let wartosc_length (w: wartosc) =
   match w with
   | Null -> assert false
@@ -170,22 +161,8 @@ let wartosc_length (w: wartosc) =
   | Range(a, b) ->
       if b - a + 1 <= 0 then max_int
       else b - a + 1
-      (* if a >= 1 then b - a + 1
-      else if b <= -2 then b - a + 1
-      else if a = 0 then b
-      else if b <= -1 then b - a + 1
-        let da = -1 - a
-        and db = b - 1 in
-        if da = max_int || db = max_int then max_int
-        else if da >= max_int - db - 3 then max_int
-        else da + db +  *)
 
 (*---------------------Funkcje do drzew---------------------*)
-
-let rec print_tree = function
-  | Empty -> print_string ("(Empty) ")
-  | Node (l, k, r, h) ->
-    print_string ("("); print_tree l; print_wartosc k; print_tree r; print_int (h); print_string (") ")
 
 let make l (k: wartosc) r = Node (l, k, r, max (height l) (height r) + 1)
 
@@ -237,30 +214,17 @@ let rec add_one cmp (x: wartosc) (t: tree) =
     | Node (l, k, r, h) ->
         let c = cmp x k
         and c1 = overlap x k in
-
         if c1 = true then
-
           let l_loop = loop true l in
           let r_loop = loop true r in
-          (* print_string("-----"); print_tree l_loop; print_tree r_loop; print_string ("\n\n");
-          print_wartosc (value l_loop); print_wartosc (k); print_wartosc( value r_loop); print_string("-----\n\n"); *)
-
           if overlap (value l_loop) k && overlap (value r_loop) k then
-            (* let _ = print_string("1 if\t\t") in *)
-            (* Node (Empty, merge_wartosc (value r_loop) (merge_wartosc (value l_loop) k), Empty, 1) *)
             make (merge (left l_loop) (right l_loop)) (merge_wartosc (value r_loop) (merge_wartosc (value l_loop) k)) (merge (left r_loop) (right r_loop))
           else if overlap (value l_loop) k then
-            (* let _ = print_string("2 if\t\t") in *)
-            (* Node (merge (left l_loop) (right l_loop), merge_wartosc x (merge_wartosc (value l_loop) k), r, height r + 1) *)
             make (merge (left l_loop) (right l_loop)) (merge_wartosc x (merge_wartosc (value l_loop) k)) r
           else if overlap (value r_loop) k then
-            (* let _ = print_string("3 if\t\t") in *)
             make l (merge_wartosc x (merge_wartosc (value r_loop) k)) (merge (left r_loop) (right r_loop))
-            (* Node (l, merge_wartosc x (merge_wartosc (value r_loop) k), merge (left r_loop) (right r_loop), height l + 1) *)
           else
-            (* let _ = print_string("4 if\t\t") in *)
             make l (merge_wartosc x k) r
-            (* Node (l, merge_wartosc x k, r, h) *)
 
         else if c < 0 then
           let nl = loop stan l in
@@ -306,25 +270,13 @@ let remove (a, b) { cmp = cmp; set = set } =
     | Node (l, k, r, _) ->
         let c = cmp x k in
         if c = 0 then
-
-
           let l_loop = loop l in
           let r_loop = loop r in
-          (* print_tree l_loop; print_tree r_loop; print_string ("\n\n"); *)
-          (* na pewno nie laczymy bo by sie wczesniej polaczylo *)
-
-          (* (make Empty res2 Empty) (merge l r)
-            (add res1 { cmp = cmp; set = (merge l r) }).set *)
           match remove_wartosc x k with
           | Null, Null -> merge l_loop r_loop
           | Null, res2 -> join cmp l_loop res2 r_loop
-            (* merge (make Empty res2 Empty) (merge l_loop r_loop) *)
           | res1, Null -> join cmp l_loop res1 r_loop
-            (* merge (make Empty res1 Empty) (merge l_loop r_loop) *)
-          | res1, res2 ->
-            (* merge (make Empty res2 Empty) (merge (merge l_loop r_loop) (make Empty res1 Empty)) *)
-             add_one cmp res1 (join cmp l_loop res2 r_loop) (* XDDDD zamienilem res1 z res2 miejscami i dziala xd *)
-
+          | res1, res2 -> add_one cmp res1 (join cmp l_loop res2 r_loop)
         else
         if c < 0 then bal (loop l) k r else bal l k (loop r)
     | Empty -> Empty in
@@ -377,17 +329,13 @@ let below (n: int) { cmp = cmp; set = set } =
     | Empty -> 0
     | Node(l, k, r, _) ->
       let c = cmp (make_wartosc (n, n)) k in
-
       if c < 0 then
         loop l
       else if c = 0 then
         let (a, _) = break_wartosc k in
-
         safe_sum (loop r) (loop l) (wartosc_length (make_wartosc (a, n)))
-
       else (* c > 0 *)
         safe_sum (loop r) (loop l) (wartosc_length k)
-
   in loop set
 
 (** [split x s] returns a triple [(l, present, r)], where
@@ -403,10 +351,6 @@ let split a { cmp = cmp; set = set } =
     | Node (l, v, r, _) ->
         let c = cmp x v in
         if c = 0 then
-
-      (*(merge (make Empty res1 Empty) l, true, r)
-      (merge (make Empty res1 Empty) l, true, merge (make Empty res2 Empty) r)*)
-
           match remove_wartosc x v with
             | Null, Null -> (l, true, r)
             | Null, res2 -> (l, true, add_one cmp res2 r)
