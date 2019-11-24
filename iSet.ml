@@ -8,7 +8,8 @@ type wartosc =
 
 (* Typ drzewa *)
 type tree =
-  | Node of tree * wartosc * tree * int   (* lewe, wartosc wezla, prawe, wysokosc *)
+  (* lewe, wartosc wezla, prawe, wysokosc, dlugosc przedzialu *)
+  | Node of tree * wartosc * tree * int * int
   | Empty
 
 (* zbior drzew z operatorem porownania *)
@@ -18,24 +19,21 @@ type t =
     set : tree;
   }
 
-(*--------------------------------Funkcje pomocnicze--------------------------------*)
-
+(*------------------------------Funkcje pomocnicze------------------------------*)
 (*---------------------Funkcje do wartosci---------------------*)
-let left = function
-  | Node (l, _, _, _) -> l
-  | Empty -> Empty
 
-let value = function
-  | Node (_, x, _, _) -> x
-  | Empty -> Null
+(* Konstruktor *)
+let make_wartosc (x, y) =
+  if x = y then Single(x)
+  else if x < y then Range(x, y)
+  else Null
 
-let right = function
-  | Node (_, _, r, _) -> r
-  | Empty -> Empty
-
-let height = function
-  | Node (_, _, _, h) -> h
-  | Empty -> 0
+(* Destrukor *)
+let break_wartosc (x: wartosc) =
+  match x with
+  | Null -> assert false
+  | Single(a) -> (a, a)
+  | Range(a, b) -> (a, b)
 
 (* Porownanie wartosci *)
 let compare_wartosc (x: wartosc) (y: wartosc) =
@@ -64,51 +62,15 @@ let overlap (x: wartosc) (y: wartosc) =
   match x, y with
   | Null, _ -> false
   | _, Null -> false
-  | Single(a), Single(b) ->
-    if b = max_int then
-      a >= max_int - 1
-    else if b = min_int then
-      a <= min_int + 1
-    else
-      a >= b - 1 && a <= b + 1
-  | Range(a, b), Single(p) ->
-    if p = max_int then
-      b >= max_int -1
-    else if p = min_int then
-      a <= min_int + 1
-    else
-      p + 1 >= a && p - 1 <= b
-  | Single(a), Range(p, q) ->
-    if a = max_int then
-      q >= max_int - 1
-    else if a = min_int then
-      p <= min_int + 1
-    else
-      a + 1 >= p && a - 1 <= q
-  | Range(a, b), Range(p, q) ->
-    if a = min_int && b = max_int then true
-    else if a = max_int then
-      q >= max_int - 1
-    else if a = min_int then
-      p <= b + 1
-    else if b = max_int then
-      q >= a - 1
-    else if b = min_int then
-      p <= min_int + 1
-    else
-      (a + 1 >= p && a - 1 <= q ) || (b + 1 >= p  && b - 1 <= q ) || (a <= p && b >= q)
-
-(* Konstruktor *)
-let make_wartosc (x, y) =
-  if x = y then Single(x)
-  else if x < y then Range(x, y)
-  else Null
-
-let break_wartosc (x: wartosc) =
-  match x with
-  | Null -> assert false
-  | Single(a) -> (a, a)
-  | Range(a, b) -> (a, b)
+  | Single(a), _ ->
+    if a = min_int then compare_wartosc (Range (a, a + 1)) y = 0
+    else if a = max_int then compare_wartosc (Range (a - 1, a)) y = 0
+    else compare_wartosc (Range (a - 1, a + 1)) y = 0
+  | Range (a, b), _ ->
+    if a = min_int && b = max_int then compare_wartosc x y = 0
+    else if a = min_int then compare_wartosc (Range (a, b + 1)) y = 0
+    else if b = max_int then compare_wartosc (Range (a - 1, b)) y = 0
+    else compare_wartosc (Range (a - 1, b + 1)) y = 0
 
 (* Odejmnowanie wartosci *)
 let remove_wartosc (x: wartosc) (y: wartosc) =
@@ -164,41 +126,58 @@ let wartosc_length (w: wartosc) =
 
 (*---------------------Funkcje do drzew---------------------*)
 
-let make l (k: wartosc) r = Node (l, k, r, max (height l) (height r) + 1)
+let left = function
+  | Node (l, _, _, _, _) -> l
+  | Empty -> Empty
+
+let value = function
+  | Node (_, x, _, _, _) -> x
+  | Empty -> Null
+
+let right = function
+  | Node (_, _, r, _, _) -> r
+  | Empty -> Empty
+
+let height = function
+  | Node (_, _, _, h, _) -> h
+  | Empty -> 0
+
+let make l (k: wartosc) r =
+  Node (l, k, r, max (height l) (height r) + 1, wartosc_length k)
 
 let bal l (k: wartosc) r =
   let hl = height l in
   let hr = height r in
   if hl > hr + 2 then
     match l with
-    | Node (ll, lk, lr, _) ->
+    | Node (ll, lk, lr, _, _) ->
         if height ll >= height lr then make ll lk (make lr k r)
         else
           (match lr with
-          | Node (lrl, lrk, lrr, _) ->
+          | Node (lrl, lrk, lrr, _, _) ->
               make (make ll lk lrl) lrk (make lrr k r)
           | Empty -> assert false)
     | Empty -> assert false
   else if hr > hl + 2 then
     match r with
-    | Node (rl, rk, rr, _) ->
+    | Node (rl, rk, rr, _, _) ->
         if height rr >= height rl then make (make l k rl) rk rr
         else
           (match rl with
-          | Node (rll, rlk, rlr, _) ->
+          | Node (rll, rlk, rlr, _, _) ->
               make (make l k rll) rlk (make rlr rk rr)
           | Empty -> assert false)
     | Empty -> assert false
-  else Node (l, k, r, max hl hr + 1)
+  else Node (l, k, r, max hl hr + 1, wartosc_length k)
 
 let rec min_elt = function
-  | Node (Empty, k, _, _) -> k
-  | Node (l, _, _, _) -> min_elt l
+  | Node (Empty, k, _, _, _) -> k
+  | Node (l, _, _, _, _) -> min_elt l
   | Empty -> raise Not_found
 
 let rec remove_min_elt = function
-  | Node (Empty, _, r, _) -> r
-  | Node (l, k, r, _) -> bal (remove_min_elt l) k r
+  | Node (Empty, _, r, _, _) -> r
+  | Node (l, k, r, _, _) -> bal (remove_min_elt l) k r
   | Empty -> invalid_arg "PSet.remove_min_elt"
 
 let merge t1 t2 =
@@ -210,43 +189,42 @@ let merge t1 t2 =
       bal t1 k (remove_min_elt t2)
 
 let rec add_one cmp (x: wartosc) (t: tree) =
-  let rec loop stan = function
-    | Node (l, k, r, h) ->
+  let rec loop stan suma = function
+    | Node (l, k, r, h, _) ->
         let c = cmp x k
         and c1 = overlap x k in
         if c1 = true then
-          let l_loop = loop true l in
-          let r_loop = loop true r in
-          if overlap (value l_loop) k && overlap (value r_loop) k then
-            make (merge (left l_loop) (right l_loop)) (merge_wartosc (value r_loop) (merge_wartosc (value l_loop) k)) (merge (left r_loop) (right r_loop))
-          else if overlap (value l_loop) k then
-            make (merge (left l_loop) (right l_loop)) (merge_wartosc x (merge_wartosc (value l_loop) k)) r
-          else if overlap (value r_loop) k then
-            make l (merge_wartosc x (merge_wartosc (value r_loop) k)) (merge (left r_loop) (right r_loop))
-          else
-            make l (merge_wartosc x k) r
+          let (l_loop, sumal) = loop true suma l in
+          let (r_loop, sumar) = loop true suma r in
+          (* jesli to pierwszy przedzial ktory przecina/zahacza o dodawany *)
+          if stan = false then
+            make (l_loop)
+            (merge_wartosc k (merge_wartosc sumar (merge_wartosc sumal x)))
+            (r_loop), Null
+          else  (* zamiast dodawac do kazdego trzymam laczna sume *)
+            merge l_loop r_loop,
+            merge_wartosc sumar (merge_wartosc sumal (merge_wartosc k suma))
 
         else if c < 0 then
-          let nl = loop stan l in
-          bal nl k r
+          let nl = fst (loop stan suma l) in
+          bal nl k r, suma
         else
-          let nr = loop stan r in
-          bal l k nr
+          let nr = fst (loop stan suma r) in
+          bal l k nr, suma
     | Empty ->
-        if stan then Empty
-        else Node (Empty, x, Empty, 1)
-  in loop false t
+        if stan then Empty,suma
+        else Node (Empty, x, Empty, 1, wartosc_length x), suma
+  in fst (loop false x t)
 
 let rec join cmp l v r =
   match (l, r) with
     (Empty, _) -> add_one cmp v r
   | (_, Empty) -> add_one cmp v l
-  | (Node(ll, lv, lr, lh), Node(rl, rv, rr, rh)) ->
+  | (Node(ll, lv, lr, lh, _), Node(rl, rv, rr, rh, _)) ->
       if lh > rh + 2 then bal ll lv (join cmp lr v r) else
       if rh > lh + 2 then bal (join cmp l v rl) rv rr else
       make l v r
-
-(*--------------------------------Funkcje z zadania--------------------------------*)
+(*------------------------------Funkcje z zadania------------------------------*)
 
 (** The empty set *)
 let (empty: t) = { cmp = compare_wartosc; set = Empty }
@@ -267,7 +245,7 @@ let add (x, y) { cmp = cmp; set = set } =
 let remove (a, b) { cmp = cmp; set = set } =
   let x = make_wartosc (a, b) in
   let rec loop = function
-    | Node (l, k, r, _) ->
+    | Node (l, k, r, _, _) ->
         let c = cmp x k in
         if c = 0 then
           let l_loop = loop l in
@@ -285,7 +263,7 @@ let remove (a, b) { cmp = cmp; set = set } =
 (** [mem x s] returns [true] if [s] contains [x], and [false] otherwise. *)
 let mem (a: int) { cmp = cmp; set = set } =
   let rec loop x = function
-    | Node (l, k, r, _) ->
+    | Node (l, k, r, _, _) ->
         let c = cmp x k in
         c = 0 || loop x (if c < 0 then l else r)
     | Empty -> false in
@@ -296,7 +274,7 @@ let mem (a: int) { cmp = cmp; set = set } =
 let iter f { set = set } =
   let rec loop = function
     | Empty -> ()
-    | Node (l, k, r, _) -> loop l; f (break_wartosc k); loop r
+    | Node (l, k, r, _, _) -> loop l; f (break_wartosc k); loop r
   in loop set
 
 (** [fold f s a] computes [(f xN ... (f x2 (f x1 a))...)], where x1
@@ -304,7 +282,7 @@ let iter f { set = set } =
 let fold f { cmp = cmp; set = set } acc =
   let rec loop acc = function
     | Empty -> acc
-    | Node (l, k, r, _) ->
+    | Node (l, k, r, _, _) ->
         loop (f (break_wartosc k) (loop acc l)) r
   in loop acc set
 
@@ -313,7 +291,7 @@ let fold f { cmp = cmp; set = set } acc =
 let elements { set = set } =
   let rec loop acc = function
     | Empty -> acc
-    | Node(l, k, r, _) -> loop ((break_wartosc k) :: loop acc r) l in
+    | Node(l, k, r, _, _) -> loop ((break_wartosc k) :: loop acc r) l in
   loop [] set
 
 (** [below n s] returns the number of elements of [s] that are lesser
@@ -327,7 +305,7 @@ let below (n: int) { cmp = cmp; set = set } =
 
   let rec loop = function
     | Empty -> 0
-    | Node(l, k, r, _) ->
+    | Node(l, k, r, _, dl) ->
       let c = cmp (make_wartosc (n, n)) k in
       if c < 0 then
         loop l
@@ -335,7 +313,7 @@ let below (n: int) { cmp = cmp; set = set } =
         let (a, _) = break_wartosc k in
         safe_sum (loop r) (loop l) (wartosc_length (make_wartosc (a, n)))
       else (* c > 0 *)
-        safe_sum (loop r) (loop l) (wartosc_length k)
+        safe_sum (loop r) (loop l) dl
   in loop set
 
 (** [split x s] returns a triple [(l, present, r)], where
@@ -348,7 +326,7 @@ let split a { cmp = cmp; set = set } =
   let rec loop x = function
     | Empty ->
         (Empty, false, Empty)
-    | Node (l, v, r, _) ->
+    | Node (l, v, r, _, _) ->
         let c = cmp x v in
         if c = 0 then
           match remove_wartosc x v with
