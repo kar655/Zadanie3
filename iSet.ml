@@ -142,13 +142,18 @@ let height = function
   | Node (_, _, _, h, _) -> h
   | Empty -> 0
 
+let sum = function
+  | Node (_, _, _, _, s) -> s
+  | Empty -> 0
+
 
 (* Creates a new node with left son l, value v and right son r.
    We must have all elements of l < v < all elements of r.
    l and r must be balanced and | height l - height r | <= 2.
    Inline expansion of height for better speed. *)
 let make l (k: wartosc) r =
-  Node (l, k, r, max (height l) (height r) + 1, wartosc_length k)
+  Node (l, k, r, max (height l) (height r) + 1,
+  wartosc_length k + sum l + sum r)
 
 
 (* Same as make, but performs one step of rebalancing if necessary.
@@ -178,7 +183,7 @@ let bal l (k: wartosc) r =
               make (make l k rll) rlk (make rlr rk rr)
           | Empty -> assert false)
     | Empty -> assert false
-  else Node (l, k, r, max hl hr + 1, wartosc_length k)
+  else Node (l, k, r, max hl hr + 1, wartosc_length k + sum l + sum r)
 
 (* Smallest element of a set *)
 let rec min_elt = function
@@ -332,9 +337,9 @@ let below (n: int) { cmp = cmp; set = set } =
         loop l
       else if c = 0 then
         let (a, _) = break_wartosc k in
-        safe_sum (loop r) (loop l) (wartosc_length (make_wartosc (a, n)))
+        safe_sum (0) (sum l) (wartosc_length (make_wartosc (a, n)))
       else (* c > 0 *)
-        safe_sum (loop r) (loop l) dl
+        safe_sum (loop r) (sum l) (wartosc_length k)
   in loop set
 
 (** [split x s] returns a triple [(l, present, r)], where
