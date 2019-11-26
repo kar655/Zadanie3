@@ -19,7 +19,7 @@ type t =
     set : tree;
   }
 
-(*------------------------------Funkcje pomocnicze------------------------------*)
+(*-----------------------------Funkcje pomocnicze-----------------------------*)
 (*---------------------Funkcje do wartosci---------------------*)
 
 (* Konstruktor *)
@@ -142,9 +142,19 @@ let height = function
   | Node (_, _, _, h, _) -> h
   | Empty -> 0
 
+
+(* Creates a new node with left son l, value v and right son r.
+   We must have all elements of l < v < all elements of r.
+   l and r must be balanced and | height l - height r | <= 2.
+   Inline expansion of height for better speed. *)
 let make l (k: wartosc) r =
   Node (l, k, r, max (height l) (height r) + 1, wartosc_length k)
 
+
+(* Same as make, but performs one step of rebalancing if necessary.
+    Assumes l and r balanced and | height l - height r | <= 3.
+    Inline expansion of create for better speed in the most frequent case
+    where no rebalancing is required. *)
 let bal l (k: wartosc) r =
   let hl = height l in
   let hr = height r in
@@ -170,16 +180,21 @@ let bal l (k: wartosc) r =
     | Empty -> assert false
   else Node (l, k, r, max hl hr + 1, wartosc_length k)
 
+(* Smallest element of a set *)
 let rec min_elt = function
   | Node (Empty, k, _, _, _) -> k
   | Node (l, _, _, _, _) -> min_elt l
   | Empty -> raise Not_found
 
+(* Remove the smallest element of the given set *)
 let rec remove_min_elt = function
   | Node (Empty, _, r, _, _) -> r
   | Node (l, k, r, _, _) -> bal (remove_min_elt l) k r
   | Empty -> invalid_arg "PSet.remove_min_elt"
 
+(* Merge two trees l and r into one.
+   All elements of l must precede the elements of r.
+   Assume | height l - height r | <= 2. *)
 let merge t1 t2 =
   match t1, t2 with
   | Empty, _ -> t2
@@ -188,6 +203,9 @@ let merge t1 t2 =
       let k = min_elt t2 in
       bal t1 k (remove_min_elt t2)
 
+(* dodaje nowy przedzial do drzewa
+   do pierwszego wezla ktory zahacza o dodawana wartosc
+   dodaje sume wszystkich ktore zahaczaly*)
 let rec add_one cmp (x: wartosc) (t: tree) =
   let rec loop stan suma = function
     | Node (l, k, r, h, _) ->
@@ -216,6 +234,9 @@ let rec add_one cmp (x: wartosc) (t: tree) =
         else Node (Empty, x, Empty, 1, wartosc_length x), suma
   in fst (loop false x t)
 
+
+(* Same as make and bal, but no assumptions are made on the
+  relative heights of l and r. *)
 let rec join cmp l v r =
   match (l, r) with
     (Empty, _) -> add_one cmp v r
@@ -342,3 +363,23 @@ let split a { cmp = cmp; set = set } =
   in
   let setl, pres, setr = loop x set in
   { cmp = cmp; set = setl }, pres, { cmp = cmp; set = setr }
+
+
+(*-----------------------------Przykladowe testy-----------------------------*)
+(*
+let a = add (0, 5) empty;;
+let a = add (7, 8) a;;
+let a = add (-3, -3) a;;
+let a = add (10, 13) a;;
+assert(elements a = [(-3, -3); (0, 5); (7, 8); (10, 13)]);;
+assert(below 8 a = 9);;
+let b = add (6, 6) a;;
+let b = remove (6, 6) b;;
+let b = add (-100, -5) b;;
+let b = add (-4, 6) b;;
+assert(elements b = [(-100, 8); (10, 13)]);;
+assert(below 10 b = 110);;
+let c = remove (2, 10) a;;
+assert(elements c = [(-3, -3); (0, 1); (11, 13)]);;
+assert(below 12 c = 5);;
+ *)
